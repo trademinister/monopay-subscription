@@ -1,0 +1,10 @@
+import { PrismaClient } from "@prisma/client";
+
+export const prisma = new PrismaClient({
+  // log: ["query", "error", "warn"], // prod
+  log: ["error", "warn"], // dev
+});
+
+process.on("beforeExit", async () => {
+  await prisma.$disconnect();
+});
