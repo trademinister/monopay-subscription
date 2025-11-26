@@ -3,8 +3,9 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "",
+    "start": "node dist/index.js",
     "dev": "nodemon",
+    "build": "tsc",
     "prisma": "prisma"
   },
   "dependencies": {

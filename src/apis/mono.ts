@@ -1,4 +1,4 @@
-import { Merchant, Transaction } from "@prisma/client";
+import { Charge, Merchant, Subscription } from "@prisma/client";
 import { ShopifyAPI } from "../functions/shopify-functions";
 import { Body, Discount } from "../functions/types";
 import { HOSTNAME } from "../config";
@@ -98,10 +98,10 @@ export class MonoBankAPI {
     }
   }
 
-  async makePaymentByToken(transaction: Transaction): Promise<void> {
+  async makePaymentByToken(transaction: Subscription | Charge, orderId: string, cardToken: string): Promise<void> {
     try {
       const shopifyApi = new ShopifyAPI(this.shop, this.accessToken);
-      const order = await shopifyApi.getShopifyOrder(transaction.orderId);
+      const order = await shopifyApi.getShopifyOrder(orderId);
 
       const headers = this.getHeaders();
 
@@ -131,12 +131,12 @@ export class MonoBankAPI {
       });
 
       const body: Body = {
-        cardToken: transaction.cardToken!,
+        cardToken: cardToken,
         amount: Number(transaction.total),
         ccy: transaction.currency,
         initiationKind: "merchant",
         merchantPaymInfo: {
-          reference: transaction.orderId,
+          reference: orderId,
           basketOrder: basketOrder,
         },
         redirectUrl: `https://${this.shop}`,

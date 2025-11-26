@@ -1,4 +1,4 @@
-import { CronTask, Transaction } from "@prisma/client";
+import { Charge, CronTask, Subscription } from "@prisma/client";
 import { prisma } from "./prisma";
 import { getNextDateForTask } from "../functions/cron";
 import { MerchantWithCronTasks } from "../functions/types";
@@ -6,8 +6,10 @@ import { MerchantWithCronTasks } from "../functions/types";
 export async function getMerchantCronTasks(): Promise<MerchantWithCronTasks[]> {
   return prisma.merchant.findMany({
     include: {
-      transactions: {
+      subscriptions: {
         where: {
+          cancelled: false,
+          cardToken: { not: null },
           cronTasks: {
             some: {},
           },
@@ -20,11 +22,11 @@ export async function getMerchantCronTasks(): Promise<MerchantWithCronTasks[]> {
   });
 }
 
-export async function createCronTask(transaction: Transaction, subscriptionTransactionId: string | null = null): Promise<CronTask | undefined> {
+export async function createCronTask(transaction: Subscription | Charge, transactionType: "subscription" | "charge", subscriptionTransactionId: string | null = null): Promise<CronTask | undefined> {
   let modifiedDate = new Date(transaction.currentModified);
   const { updatedDate, newSchedule } = getNextDateForTask(modifiedDate);
 
-  if (transaction.type === "subscription") {
+  if (transactionType === "subscription") {
     return await prisma.$transaction(async (tx) => {
       return await tx.cronTask.upsert({
         where: {

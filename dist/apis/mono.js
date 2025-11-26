@@ -2,10 +2,13 @@
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.MonoBankAPI = void 0;
 const shopify_functions_1 = require("../functions/shopify-functions");
+const config_1 = require("../config");
 class MonoBankAPI {
-    constructor() {
+    constructor(shop, token, accessToken) {
         this.baseUrl = "https://api.monobank.ua/api";
-        this.token = process.env.MONOBANK_TOKEN_DEV;
+        this.shop = shop;
+        this.token = token;
+        this.accessToken = accessToken;
     }
     getHeaders() {
         return {
@@ -14,9 +17,9 @@ class MonoBankAPI {
             "X-Token": this.token,
         };
     }
-    async createPaymentUrl(shop, orderId) {
+    async createPaymentUrl(orderId) {
         try {
-            const shopifyApi = new shopify_functions_1.ShopifyAPI(shop);
+            const shopifyApi = new shopify_functions_1.ShopifyAPI(this.shop, this.accessToken);
             const order = await shopifyApi.getShopifyOrder(orderId);
             const headers = this.getHeaders();
             const basketOrder = order.lineItems.nodes.map((lineItem) => {
@@ -48,8 +51,8 @@ class MonoBankAPI {
                     reference: order.id.split("/").pop(),
                     basketOrder: basketOrder,
                 },
-                redirectUrl: `https://${shop}`,
-                webHookUrl: `https://clan-melissa-compressed-stay.trycloudflare.com/mono/callback?shop=${shop}&type=subscription`,
+                redirectUrl: `https://${this.shop}`,
+                webHookUrl: `https://${config_1.HOSTNAME}/mono/callback?shop=${this.shop}&type=subscription`,
                 validity: 3600,
                 // validity: 60,
                 paymentType: "debit",
@@ -70,15 +73,8 @@ class MonoBankAPI {
                     },
                 ];
             }
-            // console.log("\nТІЛО ЗАПИТУ: ", JSON.stringify(body));
             const response = await fetch(`${this.baseUrl}/merchant/invoice/create`, { headers: headers, method: "POST", body: JSON.stringify(body) });
             const data = (await response.json());
-            console.log("Виконано запит 'Створення рахунку'");
-            // console.log("\n", data);
-            // return {
-            //   invoiceId: "p2_9ZgpZVsl3",
-            //   pageUrl: "https://pay.mbnk.biz/p2_9ZgpZVsl3",
-            // };
             return {
                 invoiceId: data.invoiceId,
                 pageUrl: data.pageUrl,
@@ -88,10 +84,10 @@ class MonoBankAPI {
             throw new Error(error);
         }
     }
-    async makePaymentByToken(shop, transaction) {
+    async makePaymentByToken(transaction, orderId, cardToken) {
         try {
-            const shopifyApi = new shopify_functions_1.ShopifyAPI(shop);
-            const order = await shopifyApi.getShopifyOrder(transaction.orderId);
+            const shopifyApi = new shopify_functions_1.ShopifyAPI(this.shop, this.accessToken);
+            const order = await shopifyApi.getShopifyOrder(orderId);
             const headers = this.getHeaders();
             const basketOrder = order.lineItems.nodes.map((lineItem) => {
                 const discounts = lineItem.discountAllocations.map((discount) => ({
@@ -116,18 +112,18 @@ class MonoBankAPI {
                 };
             });
             const body = {
-                cardToken: transaction.cardToken,
+                cardToken: cardToken,
                 amount: Number(transaction.total),
                 ccy: transaction.currency,
                 initiationKind: "merchant",
                 merchantPaymInfo: {
-                    reference: transaction.orderId,
+                    reference: orderId,
                     basketOrder: basketOrder,
                 },
-                redirectUrl: `https://${shop}`,
-                successUrl: `https://${shop}`,
-                failUrl: `https://${shop}`,
-                webHookUrl: `https://clan-melissa-compressed-stay.trycloudflare.com/mono/callback?shop=${shop}&type=charge`,
+                redirectUrl: `https://${this.shop}`,
+                successUrl: `https://${this.shop}`,
+                failUrl: `https://${this.shop}`,
+                webHookUrl: `https://${config_1.HOSTNAME}/mono/callback?shop=${this.shop}&type=charge`,
                 validity: 3600,
                 // validity: 60,
                 paymentType: "debit",
@@ -155,10 +151,6 @@ class MonoBankAPI {
                 console.log("Виникла помилка при виконанні запиту", data?.errCode, data?.errText);
                 console.log("Тіло запиту: ", JSON.stringify(body));
             }
-            // return {
-            //   invoiceId: "p2_9ZgpZVsl3",
-            //   pageUrl: "https://pay.mbnk.biz/p2_9ZgpZVsl3",
-            // };
         }
         catch (error) {
             console.log(error);

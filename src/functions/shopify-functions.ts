@@ -73,7 +73,7 @@ export class ShopifyAPI {
     const data = await this.sendRequest(createMetafieldDefinitionMutation, {
       definition: {
         name: name,
-        namespace: "copycon",
+        namespace: "mono",
         key: key,
         description: "",
         type: "single_line_text_field",

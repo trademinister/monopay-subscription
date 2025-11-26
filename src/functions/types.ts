@@ -225,7 +225,7 @@ export interface TransactionWithSuccessPayload {
 
 export type MerchantWithCronTasks = Prisma.MerchantGetPayload<{
   include: {
-    transactions: {
+    subscriptions: {
       include: {
         cronTasks: true;
       };

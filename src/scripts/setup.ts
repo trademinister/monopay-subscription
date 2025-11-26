@@ -1,6 +1,7 @@
 import "dotenv/config";
 import readline from "readline";
-import crypto from "crypto";
+import * as crypto from "crypto";
+
 
 const algorithm = process.env.ALGORITHM!;
 const ivLength = 12;

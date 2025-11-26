@@ -2,8 +2,9 @@ import { Request, Response } from "express";
 import { MonoBankAPI } from "../apis/mono";
 import { createCronTask, deleteCronTask } from "../db/cron-task.repository";
 import { getMerchant } from "../db/merchant.repository";
-import { deleteTransaction, getSubscriptionTransaction, saveTransaction } from "../db/transaction.repository";
+import { deleteSubscription, getMerchantSubscriptions, getSubscriptionByCharge, getSubscriptionByOrderId, getSubscriptionChargesByInvoiceId, getSubscriptionChargesByOrderId, saveTransaction } from "../db/transaction.repository";
 import { initializeCronTask, reloadCronTask, removeCronTask } from "../functions/cron";
+import { Charge, Subscription } from "@prisma/client";
 
 interface RequestParams {
   shop: string;
@@ -51,7 +52,7 @@ export const paymentCallBack = async (req: Request, res: Response): Promise<void
     }
 
     if (body?.status === "expired") {
-      await deleteTransaction(body.invoiceId);
+      await deleteSubscription(body.invoiceId);
       console.log(`Транзакція видалена з БД — статус: "${body.status}"`);
       res.status(200).json({ status: "deleted" });
       return;
@@ -68,33 +69,33 @@ export const paymentCallBack = async (req: Request, res: Response): Promise<void
 
       const mono = new MonoBankAPI(merchant.shop, merchant.monobankToken!, merchant.accessToken);
 
-      if (transaction.type === "subscription") {
-        if (!transaction.cardToken) {
+      if (type === "subscription") {
+        const subscription = transaction as Subscription;
+        if (!subscription.cardToken) {
           res.status(200).json({ status: "no_card_token" });
           return;
         }
 
-        const cronJob = await createCronTask(transaction);
+        const cronJob = await createCronTask(subscription, "subscription");
         if (cronJob) {
-          initializeCronTask(transaction, cronJob, mono);
+          initializeCronTask(subscription, subscription.orderId, subscription.cardToken, cronJob, mono);
           console.log("Створено task підписки для cron");
           res.status(200).json({ status: "success" });
           return;
         }
       }
 
-      if (transaction.type === "charge") {
-        const subscriptionTransaction = await getSubscriptionTransaction(shop, transaction.orderId);
-        if (!subscriptionTransaction) {
+      if (type === "charge") {
+        const charge = transaction as Charge;
+        const subscription = await getSubscriptionByCharge(charge);
+        if (!subscription) {
           res.status(200).json({ status: "success", message: "success" });
           return;
         }
 
-        transaction.cardToken = subscriptionTransaction.cardToken;
-
-        const cronJob = await createCronTask(transaction, subscriptionTransaction.id);
+        const cronJob = await createCronTask(charge, "charge", subscription.id);
         if (cronJob) {
-          reloadCronTask(transaction, cronJob, mono);
+          reloadCronTask(charge, subscription.orderId, subscription.cardToken!, cronJob, mono);
           console.log("Оновлено task підписки для cron");
           res.status(200).json({ status: "success" });
           return;
@@ -106,6 +107,52 @@ export const paymentCallBack = async (req: Request, res: Response): Promise<void
     console.error("Помилка обробки колбеку:", error);
     res.status(200).json({ status: "error" });
   }
+};
+
+export const getSubscriptions = async (req: Request, res: Response): Promise<void> => {
+  const shop = req.query.shop as string | undefined;
+
+  if (!shop) {
+    res.status(404).json({ status: "error", message: "Shop not found" });
+    return;
+  }
+
+  const subscriptions = (await getMerchantSubscriptions(shop))?.subscriptions;
+  if (!subscriptions) {
+    res.status(400).json([]);
+    return;
+  }
+  res.status(200).json(subscriptions);
+  return;
+};
+
+export const getSubscriptionCharges = async (req: Request, res: Response): Promise<void> => {
+  const shop = req.query.shop as string | undefined;
+  const invoiceId = req.query.invoiceId as string | undefined;
+  const orderId = req.query.orderId as string | undefined;
+
+  if (invoiceId) {
+    const charges = await getSubscriptionChargesByInvoiceId(invoiceId);
+    if (!charges) {
+      res.status(400).json([]);
+      return;
+    }
+    res.status(200).json(charges?.charges);
+    return;
+  }
+
+  if (orderId) {
+    const charges = (await getSubscriptionChargesByOrderId(shop!, orderId))?.subscriptions[0]?.charges;
+    if (!charges) {
+      res.status(400).json([]);
+      return;
+    }
+    res.status(200).json(charges);
+    return;
+  }
+
+  res.status(404).json({ status: "error", message: "Parameters orderId or invoiceId required" });
+  return;
 };
 
 export const cancelSubscription = async (req: Request, res: Response): Promise<void> => {
@@ -121,17 +168,17 @@ export const cancelSubscription = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const transaction = await getSubscriptionTransaction(shop, orderId);
+    const subscription = await getSubscriptionByOrderId(shop, orderId);
 
-    if (!transaction || !transaction?.cronTasks?.length) {
+    if (!subscription || !subscription?.cronTasks?.length) {
       console.log("Відсутня підписка або cron task");
       res.status(200).json({ status: "success" });
       return;
     }
 
-    const cronTaskId = transaction.cronTasks[0].id;
+    const cronTaskId = subscription.cronTasks[0].id;
 
-    removeCronTask(cronTaskId, transaction);
+    removeCronTask(cronTaskId, subscription);
     await deleteCronTask(cronTaskId);
     console.log("Відміна підписки");
     res.status(200).json({ status: "success" });

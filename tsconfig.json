@@ -6,7 +6,7 @@
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "outDir": ".",
+    "outDir": "dist",
     "rootDir": "./src"
   },
   "include": ["src/**/*.ts", "src/index.mts", "src/scripts/setup.ts"],

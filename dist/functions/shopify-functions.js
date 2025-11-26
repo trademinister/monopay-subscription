@@ -3,8 +3,8 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.ShopifyAPI = void 0;
 const graphql_1 = require("./graphql");
 class ShopifyAPI {
-    constructor(shopifyDomain) {
-        this.accessToken = process.env.SHOPIFY_ACCESS_TOKEN;
+    constructor(shopifyDomain, accessToken) {
+        this.accessToken = accessToken;
         this.shopifyVersion = process.env.SHOPIFY_VERSION;
         this.basicUrl = `https://${shopifyDomain}/admin/api/${this.shopifyVersion}/graphql.json`;
     }

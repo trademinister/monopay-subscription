@@ -3,7 +3,7 @@ import { ShopifyAPI } from "../functions/shopify-functions";
 import { createMerchant, getMerchant } from "../db/merchant.repository";
 import { EncryptedPayload } from "../functions/types";
 import { decrypt } from "../scripts/setup";
-import { getOrderSubscriptionTransaction, getSubscriptionTransaction } from "../db/transaction.repository";
+import { getOrderSubscriptionTransaction, getSubscriptionByCharge } from "../db/transaction.repository";
 
 export const callback = async (req: Request, res: Response): Promise<void> => {
   try {
@@ -59,7 +59,7 @@ export const getGateway = async (req: Request, res: Response): Promise<void> => 
     const shopifyApi = new ShopifyAPI(merchant.shop, merchant.accessToken);
     const gateways = await shopifyApi.getOrderGateways(orderId as string);
     const subscription = await getOrderSubscriptionTransaction(shop, orderId);
-    res.json({ gateways, activity: subscription && subscription.active ? true : false, redirectUrl: subscription?.currentStatus === "created" ? `https://pay.monobank.ua/${subscription.invoiceId}` : "" });
+    res.json({ gateways, activity: subscription && !subscription.cancelled ? true : false, redirectUrl: subscription?.currentStatus === "created" ? `https://pay.monobank.ua/${subscription.invoiceId}` : "" });
     return;
   } catch (error: any) {
     throw new Error(error.message);
