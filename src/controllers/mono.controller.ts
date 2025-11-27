@@ -105,7 +105,7 @@ export const paymentCallBack = async (req: Request, res: Response): Promise<void
     res.status(200).json({ status: "success" });
   } catch (error) {
     console.error("Помилка обробки колбеку:", error);
-    res.status(200).json({ status: "error" });
+    res.status(400).json({ status: "error" });
   }
 };
 
