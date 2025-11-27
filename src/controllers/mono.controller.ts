@@ -119,7 +119,7 @@ export const getSubscriptions = async (req: Request, res: Response): Promise<voi
 
   const subscriptions = (await getMerchantSubscriptions(shop))?.subscriptions;
   if (!subscriptions) {
-    res.status(400).json([]);
+    res.status(200).json([]);
     return;
   }
   res.status(200).json(subscriptions);
@@ -134,7 +134,7 @@ export const getSubscriptionCharges = async (req: Request, res: Response): Promi
   if (invoiceId) {
     const charges = await getSubscriptionChargesByInvoiceId(invoiceId);
     if (!charges) {
-      res.status(400).json([]);
+      res.status(200).json([]);
       return;
     }
     res.status(200).json(charges?.charges);
