@@ -89,6 +89,15 @@ query getOrder($id: ID!) {
 }
 `;
 
+export const getCustomerQuery = `
+query getCustomer($id: ID!) {
+  order(id: $id) {
+    customer {
+      id
+    }
+  }
+}`;
+
 export const getOrderGatewayQuery = `
 query getOrder($id: ID!) {
   order(id: $id) {

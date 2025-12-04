@@ -5,6 +5,8 @@ import { getMerchant } from "../db/merchant.repository";
 import { deleteSubscription, getMerchantSubscriptions, getSubscriptionByCharge, getSubscriptionByOrderId, getSubscriptionChargesByInvoiceId, getSubscriptionChargesByOrderId, saveTransaction } from "../db/transaction.repository";
 import { initializeCronTask, reloadCronTask, removeCronTask } from "../functions/cron";
 import { Charge, Subscription } from "@prisma/client";
+import { verifyShopifyProxyRequest } from "../functions/proxy-validation";
+import { SHOPIFY_API_SECRET } from "../config";
 
 interface RequestParams {
   shop: string;
@@ -110,14 +112,20 @@ export const paymentCallBack = async (req: Request, res: Response): Promise<void
 };
 
 export const getSubscriptions = async (req: Request, res: Response): Promise<void> => {
-  const shop = req.query.shop as string | undefined;
+  // console.log(req.query);
+  const auth = verifyShopifyProxyRequest(req, SHOPIFY_API_SECRET!);
 
-  if (!shop) {
-    res.status(404).json({ status: "error", message: "Shop not found" });
+  if (!auth.ok) {
+    res.status(403).json({ status: "forbidden", message: `Authorization failed: ${auth.reason}` });
     return;
   }
 
-  const subscriptions = (await getMerchantSubscriptions(shop))?.subscriptions;
+  if (!auth.customerId) {
+    res.status(401).json({ status: "unathorized", message: "Login required" });
+    return;
+  }
+
+  const subscriptions = (await getMerchantSubscriptions(auth.shop, auth.customerId))?.subscriptions;
   if (!subscriptions) {
     res.status(200).json([]);
     return;
@@ -127,7 +135,18 @@ export const getSubscriptions = async (req: Request, res: Response): Promise<voi
 };
 
 export const getSubscriptionCharges = async (req: Request, res: Response): Promise<void> => {
-  const shop = req.query.shop as string | undefined;
+  const auth = verifyShopifyProxyRequest(req, SHOPIFY_API_SECRET!);
+
+  if (!auth.ok) {
+    res.status(403).json({ status: "forbidden", message: `Authorization failed: ${auth.reason}` });
+    return;
+  }
+
+  if (!auth.customerId) {
+    res.status(401).json({ status: "unathorized", message: "login_required" });
+    return;
+  }
+
   const invoiceId = req.query.invoiceId as string | undefined;
   const orderId = req.query.orderId as string | undefined;
 
@@ -142,21 +161,32 @@ export const getSubscriptionCharges = async (req: Request, res: Response): Promi
   }
 
   if (orderId) {
-    const charges = (await getSubscriptionChargesByOrderId(shop!, orderId))?.subscriptions[0]?.charges;
+    const charges = (await getSubscriptionChargesByOrderId(auth.shop, orderId, auth.customerId))?.subscriptions[0]?.charges;
     if (!charges) {
-      res.status(400).json([]);
+      res.status(200).json([]);
       return;
     }
     res.status(200).json(charges);
     return;
   }
 
-  res.status(404).json({ status: "error", message: "Parameters orderId or invoiceId required" });
+  res.status(404).json({ status: "error", message: "orderId or invoiceId required" });
   return;
 };
 
 export const cancelSubscription = async (req: Request, res: Response): Promise<void> => {
   try {
+    const auth = verifyShopifyProxyRequest(req, SHOPIFY_API_SECRET!);
+    if (!auth.ok) {
+      res.status(403).json({ status: "forbidden", message: `Authorization failed: ${auth.reason}` });
+      return;
+    }
+
+    if (!auth.customerId) {
+      res.status(401).json({ status: "unathorized", message: "login_required" });
+      return;
+    }
+
     const shop = req.query.shop as string;
     const orderId = req.query.orderId as string;
     console.log("Параметри запиту: ", shop, orderId);
@@ -168,7 +198,7 @@ export const cancelSubscription = async (req: Request, res: Response): Promise<v
       return;
     }
 
-    const subscription = await getSubscriptionByOrderId(shop, orderId);
+    const subscription = await getSubscriptionByOrderId(shop, orderId, auth.customerId);
 
     if (!subscription || !subscription?.cronTasks?.length) {
       console.log("Відсутня підписка або cron task");

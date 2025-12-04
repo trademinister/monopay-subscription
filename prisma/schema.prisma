@@ -40,6 +40,7 @@ model Subscription {
   id              String   @id @default(uuid())
   invoiceId       String   @unique
   orderId         String
+  customerId      String
   total           Decimal  @db.Decimal(18, 2)
   currency        Int
   currentStatus   TxStatus

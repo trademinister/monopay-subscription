@@ -1,4 +1,4 @@
-import { createMetafieldDefinitionMutation, getMetafieldDefinitionQuery, getOrderGatewayQuery, getOrderQuery } from "./graphql";
+import { createMetafieldDefinitionMutation, getCustomerQuery, getMetafieldDefinitionQuery, getOrderGatewayQuery, getOrderQuery } from "./graphql";
 import { MetafieldDefinition, Order, OrderGateways } from "./types";
 
 export class ShopifyAPI {
@@ -88,6 +88,14 @@ export class ShopifyAPI {
     });
 
     return data.order;
+  }
+
+  async getCustomerIdFromOrder(orderId: string): Promise<string> {
+    const data = await this.sendRequest(getCustomerQuery, {
+      id: `gid://shopify/Order/${orderId}`,
+    });
+
+    return data.order.customer?.id ? data.order.customer.id.split("/").pop() : "";
   }
 
   async getOrderGateways(orderId: string): Promise<OrderGateways> {

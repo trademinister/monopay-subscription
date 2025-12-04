@@ -1,5 +1,19 @@
 import { $Enums, Prisma } from "@prisma/client";
 
+export interface ShopifyProxyAuthSuccess {
+  ok: true;
+  shop: string;
+  customerId: string;
+  timestamp: number;
+}
+
+export interface ShopifyProxyAuthFail {
+  ok: false;
+  reason: "missing_signature" | "invalid_signature" | "invalid_shop" | "invalid_timestamp" | "timestamp_out_of_range" | "shop_not_allowed";
+}
+
+export type ShopifyProxyAuthResult = ShopifyProxyAuthSuccess | ShopifyProxyAuthFail;
+
 export interface EncryptedPayload {
   token: string;
   iv: string;

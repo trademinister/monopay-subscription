@@ -1,6 +1,7 @@
 import { $Enums, Charge, CronTask, Merchant, Prisma, Subscription } from "@prisma/client";
 import { Transaction as TransactionData } from "../functions/types";
 import { prisma } from "./prisma";
+import { ShopifyAPI } from "../functions/shopify-functions";
 
 export async function getSubscription(merchant: Merchant): Promise<Subscription[]> {
   return prisma.subscription.findMany({
@@ -22,11 +23,11 @@ export async function getSubscriptionByCharge(charge: Charge): Promise<(Subscrip
     include: { cronTasks: true },
   });
 }
-export async function getSubscriptionByOrderId(shop: string, orderId: string): Promise<(Subscription & { cronTasks: CronTask[] }) | null> {
+export async function getSubscriptionByOrderId(shop: string, orderId: string, customerId: string): Promise<(Subscription & { cronTasks: CronTask[] }) | null> {
   return await prisma.$transaction(async (tx) => {
     const merchant = await tx.merchant.findUnique({ where: { shop: shop } });
     return tx.subscription.findFirst({
-      where: { merchantId: merchant!.id, orderId: orderId, cancelled: false },
+      where: { merchantId: merchant!.id, orderId: orderId, customerId, cancelled: false },
       include: { cronTasks: true },
     });
   });
@@ -49,10 +50,10 @@ export async function getOrderSubscriptionTransaction(shop: string, orderId: str
   return transaction;
 }
 
-export async function getMerchantSubscriptions(shop: string) {
+export async function getMerchantSubscriptions(shop: string, customerId: string) {
   return await prisma.merchant.findUnique({
     where: { shop: shop },
-    select: { shop: true, subscriptions: { select: { id: true, invoiceId: true, orderId: true, total: true, currency: true, currentStatus: true, currentModified: true, createdAt: true, updatedAt: true, cancelled: true } } },
+    select: { shop: true, subscriptions: { where: { customerId }, select: { id: true, invoiceId: true, orderId: true, total: true, currency: true, currentStatus: true, currentModified: true, createdAt: true, updatedAt: true, cancelled: true } } },
   });
 }
 
@@ -76,13 +77,13 @@ export async function getSubscriptionChargesByInvoiceId(invoiceId: string) {
   });
 }
 
-export async function getSubscriptionChargesByOrderId(shop: string, orderId: string) {
+export async function getSubscriptionChargesByOrderId(shop: string, orderId: string, customerId: string) {
   return await prisma.$transaction(async (tx) => {
     return await tx.merchant.findUnique({
       where: { shop },
       select: {
         subscriptions: {
-          where: { orderId },
+          where: { orderId, customerId },
           select: {
             charges: {
               select: {
@@ -118,11 +119,14 @@ export async function saveTransaction(transaction: TransactionData, merchant: Me
         if (transaction.status === "processing") {
           trx = existing;
         } else {
+          const shopifyApi = new ShopifyAPI(merchant.shop, merchant.accessToken);
+          const customerId = await shopifyApi.getCustomerIdFromOrder(transaction.reference);
           if (!existing) {
             trx = await tx.subscription.create({
               data: {
                 invoiceId: transaction.invoiceId,
                 orderId: transaction.reference,
+                customerId: customerId,
                 total: new Prisma.Decimal(transaction.amount),
                 currency: Number(transaction.ccy),
                 currentStatus: transaction.status,
